@@ -112,7 +112,8 @@ def jogo_da_forca():
         print("Opções:")
         print("1. Começar o Jogo")
         print("2. Ver Pontuação")
-        escolha = input("Escolha a opção (1/2): ")
+        print("3. Sair")
+        escolha = input("Escolha a opção (1/2/3): ")
         
         if escolha == "1":
             nome = input("Digite o seu nome: ")
@@ -155,23 +156,19 @@ def jogo_da_forca():
                 if tentativas == 0:
                     print(f"Você perdeu, {nome}! A palavra era: {palavra}")
                 
-                resposta = input("Deseja jogar novamente ou mudar de jogador? (S/M): ").lower()
-                if resposta == 'n':
+                escolha = input("Deseja jogar novamente ou voltar ao menu? (J/M): ").lower()
+                if escolha != 'j':
                     break
-                
-            
         elif escolha == "2":
             pontuacoes = listar_pontuacao_com_media()
             print("Pontuações:")
             for jogador, (pontos, media) in pontuacoes.items():
                 print(f"{jogador}: {pontos} ponto(s) - Média: {media:.2f}")
-            escolha = input("Pressione Enter para continuar...")
-        else:
-            print("Opção inválida. Escolha 1 para começar o jogo ou 2 para ver a pontuação.")
-
-        escolha = input("Deseja jogar com outro nome? (S/N): ")
-        if escolha.lower() != 's':
+            input("Pressione Enter para voltar ao menu.")
+        elif escolha == "3":
             break
+        else:
+            print("Opção inválida. Escolha 1 para começar o jogo, 2 para ver a pontuação ou 3 para sair.")
 
 if __name__ == "__main__":
     jogo_da_forca()

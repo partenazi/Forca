@@ -1,88 +1,99 @@
 import sqlite3
-import random
 
-# Função para criar o banco de dados
 def criar_banco_de_dados():
     conn = sqlite3.connect("jogo.db")
     cursor = conn.cursor()
-    cursor.execute("CREATE TABLE IF NOT EXISTS jogadores (nome TEXT, pontos INT)")
-    cursor.execute("CREATE TABLE IF NOT EXISTS palavras (palavra TEXT, dica TEXT)")
+    
+    cursor.execute("CREATE TABLE IF NOT EXISTS jogadores (nome TEXT, pontos INT, categoria TEXT)")
+    cursor.execute("CREATE TABLE IF NOT EXISTS palavras (palavra TEXT, dica TEXT, categoria TEXT)")
+
+    cursor.execute("PRAGMA table_info('jogadores')")
+    columns = cursor.fetchall()
+    column_names = [column[1] for column in columns]
+
+    if 'categoria' not in column_names:
+        cursor.execute("ALTER TABLE jogadores ADD COLUMN categoria TEXT")
+
     conn.commit()
     conn.close()
 
-# Função para adicionar uma palavra e dica ao banco de dados
-def adicionar_palavra_e_dica(palavra, dica):
+def adicionar_palavra_e_dica(palavra, dica, categoria):
     conn = sqlite3.connect("jogo.db")
     cursor = conn.cursor()
-    cursor.execute("INSERT INTO palavras (palavra, dica) VALUES (?, ?)", (palavra, dica))
+    
+    cursor.execute("INSERT INTO palavras (palavra, dica, categoria) VALUES (?, ?, ?)", (palavra, dica, categoria))
     conn.commit()
     conn.close()
 
-# Função para obter uma palavra e dica do banco de dados
-def obter_palavra_e_dica():
+criar_banco_de_dados()
+
+adicionar_palavra_e_dica("python", "Uma linguagem de programação", "animal")
+
+def obter_palavra_e_dica(categoria):
     conn = sqlite3.connect("jogo.db")
     cursor = conn.cursor()
-    cursor.execute("SELECT palavra, dica FROM palavras ORDER BY RANDOM() LIMIT 1")
+    cursor.execute("SELECT palavra, dica FROM palavras WHERE categoria = ? ORDER BY RANDOM() LIMIT 1", (categoria,))
     resultado = cursor.fetchone()
     conn.close()
     return resultado
 
-# Função para adicionar a pontuação do jogador
-def adicionar_pontuacao(nome, pontos):
+def adicionar_pontuacao(nome, categoria, pontos=0):
     conn = sqlite3.connect("jogo.db")
     cursor = conn.cursor()
-    cursor.execute("INSERT INTO jogadores (nome, pontos) VALUES (?, ?)", (nome, pontos))
+    
+    cursor.execute("SELECT pontos FROM jogadores WHERE nome = ? AND categoria = ?", (nome, categoria))
+    resultado = cursor.fetchone()
+    
+    if resultado:
+        pontos_atuais = resultado[0]
+        pontos_atuais -= pontos
+        cursor.execute("UPDATE jogadores SET pontos = ? WHERE nome = ? AND categoria = ?", (pontos_atuais, nome, categoria))
+    else:
+        cursor.execute("INSERT INTO jogadores (nome, pontos, categoria) VALUES (?, ?, ?)", (nome, pontos, categoria))
+    
     conn.commit()
     conn.close()
 
-# Função para listar a pontuação e a média dos jogadores
 def listar_pontuacao_com_media():
     conn = sqlite3.connect("jogo.db")
     cursor = conn.cursor()
     
-    # Selecionar os pontos de todos os jogadores
-    cursor.execute("SELECT nome, pontos FROM jogadores")
+    cursor.execute("SELECT nome, pontos, categoria FROM jogadores")
     resultados = cursor.fetchall()
     
-    # Calcular a média dos pontos
     pontuacoes = {}
-    for jogador, pontos in resultados:
+    for jogador, pontos, categoria in resultados:
         if jogador not in pontuacoes:
-            pontuacoes[jogador] = []
-        pontuacoes[jogador].append(pontos)
+            pontuacoes[jogador] = {"pontos": 0, "categoria": categoria}
+        pontuacoes[jogador]["pontos"] += pontos
     
-    # Calcular a média de cada jogador
     media_pontos = {}
-    for jogador, pontos in pontuacoes.items():
-        media = sum(pontos) / len(pontos)
-        media_pontos[jogador] = (sum(pontos), media)  # Correção aqui
+    for jogador, info in pontuacoes.items():
+        pontos = info["pontos"]
+        categoria = info["categoria"]
+        media = pontos
+        media_pontos[jogador] = (pontos, media, categoria)
     
-    # Fechar a conexão com o banco de dados
     conn.close()
     
     return media_pontos
 
-# Função para criar um novo jogador ou acumular pontos para jogadores com nomes semelhantes
-def novo_jogador(nome):
+def novo_jogador(nome, categoria):
     conn = sqlite3.connect("jogo.db")
     cursor = conn.cursor()
-    
-    # Verifica se já existe um jogador com nome semelhante
-    cursor.execute("SELECT nome FROM jogadores WHERE nome LIKE ?", (f'%{nome}%',))
+
+    cursor.execute("SELECT nome FROM jogadores WHERE nome LIKE ? AND categoria = ?", (f'%{nome}%', categoria))
     nomes_semelhantes = cursor.fetchall()
-    
+
     if not nomes_semelhantes:
-        # Não há nomes semelhantes, então cria um novo jogador
-        cursor.execute("INSERT INTO jogadores (nome, pontos) VALUES (?, 0)", (nome,))
+        cursor.execute("INSERT INTO jogadores (nome, pontos, categoria) VALUES (?, 0, ?)", (nome, categoria))
     else:
-        # Acumula pontos para jogadores com nomes semelhantes
         for jogador in nomes_semelhantes:
-            cursor.execute("UPDATE jogadores SET pontos = pontos + 1 WHERE nome = ?", (jogador[0],))
-    
+            cursor.execute("UPDATE jogadores SET pontos = pontos + 1 WHERE nome = ? AND categoria = ?", (jogador[0], categoria))
+
     conn.commit()
     conn.close()
 
-# Função para exibir a palavra com letras corretas adivinhadas
 def exibir_palavra_com_acertos(palavra, letras_adivinhadas):
     palavra_mostrada = ""
     for letra in palavra:
@@ -92,19 +103,36 @@ def exibir_palavra_com_acertos(palavra, letras_adivinhadas):
             palavra_mostrada += "_"
     return palavra_mostrada
 
-# Função para permitir que o jogador dê a resposta certa
 def dar_resposta_certa(palavra, nome):
     resposta = input("Digite a resposta certa: ").lower()
-    
+   
     if resposta == palavra:
         print(f"Parabéns, {nome}! Você acertou a palavra!")
         adicionar_pontuacao(nome, 1)
         return True
     else:
-        print(f"Resposta incorreta, {nome}. A palavra era: {palavra}")
+        print(f"Resposta incorreta, {nome}. O jogo será encerrado.")
+        remover_pontos(nome, -1)
         return False
 
-# Função para jogar o jogo da forca
+
+def remover_pontos(nome, pontos):
+    conn = sqlite3.connect("jogo.db")
+    cursor = conn.cursor()
+    
+    cursor.execute("SELECT pontos FROM jogadores WHERE nome = ? ", (nome,))  # Adicionando a cláusula WHERE corretamente
+    resultado = cursor.fetchone()
+    
+    if resultado:
+        pontos_atuais = resultado[0]
+        pontos_atuais -= pontos
+        cursor.execute("UPDATE jogadores SET pontos = ? WHERE nome = ?", (pontos_atuais, nome))
+    else:
+        print("Jogador não encontrado.")
+    
+    conn.commit()
+    conn.close()
+
 def jogo_da_forca():
     criar_banco_de_dados()
 
@@ -117,13 +145,12 @@ def jogo_da_forca():
         
         if escolha == "1":
             nome = input("Digite o seu nome: ")
-            novo_jogador(nome)
+            categoria = input("Escolha uma categoria (animal/fruta/outro): ").lower()
+            novo_jogador(nome, categoria)
             
             while True:
-                # Obter uma palavra e dica
-                palavra, dica = obter_palavra_e_dica()
+                palavra, dica = obter_palavra_e_dica(categoria)
                 
-                # Lógica do jogo da forca
                 letras_adivinhadas = set()
                 tentativas = 6
                 
@@ -140,6 +167,10 @@ def jogo_da_forca():
                     if letra == "resposta":
                         if dar_resposta_certa(palavra, nome):
                             break
+                        else:
+                            print(f"Você errou, {nome}! O jogo terminou.")
+                            remover_pontos(nome, 1)
+                            break
                     else:
                         if letra in letras_adivinhadas:
                             print("Você já adivinhou essa letra.")
@@ -152,9 +183,13 @@ def jogo_da_forca():
                         else:
                             tentativas -= 1
                             print("Letra incorreta. Tente novamente.")
+                            
+                            
                 
                 if tentativas == 0:
                     print(f"Você perdeu, {nome}! A palavra era: {palavra}")
+                    remover_pontos(nome, 1)
+                    
                 
                 escolha = input("Deseja jogar novamente ou voltar ao menu? (J/M): ").lower()
                 if escolha != 'j':
@@ -162,7 +197,7 @@ def jogo_da_forca():
         elif escolha == "2":
             pontuacoes = listar_pontuacao_com_media()
             print("Pontuações:")
-            for jogador, (pontos, media) in pontuacoes.items():
+            for jogador, (pontos, media, categoria) in pontuacoes.items():
                 print(f"{jogador}: {pontos} ponto(s) - Média: {media:.2f}")
             input("Pressione Enter para voltar ao menu.")
         elif escolha == "3":
@@ -171,4 +206,10 @@ def jogo_da_forca():
             print("Opção inválida. Escolha 1 para começar o jogo, 2 para ver a pontuação ou 3 para sair.")
 
 if __name__ == "__main__":
+    criar_banco_de_dados()
+    
+    adicionar_palavra_e_dica("python", "Uma linguagem de programação", "animal")
+    adicionar_palavra_e_dica("girafa", "Um animal de pescoço longo", "animal")
+    adicionar_palavra_e_dica("coco", "É redondo e tem na praia", "fruta")
+    
     jogo_da_forca()

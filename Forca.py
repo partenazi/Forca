@@ -1,4 +1,5 @@
 import sqlite3
+import random
 
 def criar_banco_de_dados():
     conn = sqlite3.connect("jogo.db")
@@ -54,6 +55,8 @@ def adicionar_pontuacao(nome, categoria, pontos=0):
     conn.commit()
     conn.close()
 
+
+
 def listar_pontuacao_com_media():
     conn = sqlite3.connect("jogo.db")
     cursor = conn.cursor()
@@ -86,7 +89,7 @@ def novo_jogador(nome, categoria):
     nomes_semelhantes = cursor.fetchall()
 
     if not nomes_semelhantes:
-        cursor.execute("INSERT INTO jogadores (nome, pontos, categoria) VALUES (?, 0, ?)", (nome, categoria))
+        cursor.execute("INSERT INTO jogadores (nome, pontos, categoria) VALUES (?, 0, ?)", (nome,categoria))
     else:
         for jogador in nomes_semelhantes:
             cursor.execute("UPDATE jogadores SET pontos = pontos + 1 WHERE nome = ? AND categoria = ?", (jogador[0], categoria))
@@ -97,16 +100,16 @@ def novo_jogador(nome, categoria):
 def exibir_palavra_com_acertos(palavra, letras_adivinhadas):
     palavra_mostrada = ""
     for letra in palavra:
-        if letra.isalpha() and letra in letras_adivinhadas:
+        if letra.isalpha() and letra.lower() in letras_adivinhadas:
             palavra_mostrada += letra
         else:
             palavra_mostrada += "_"
     return palavra_mostrada
 
 def dar_resposta_certa(palavra, nome):
-    resposta = input("Digite a resposta certa: ").lower()
-   
-    if resposta == palavra:
+    resposta = input("Digite a resposta certa: ").lower()  # Converter a resposta para minúsculas
+
+    if resposta == palavra.lower():  # Comparar com a palavra correta em minúsculas
         print(f"Parabéns, {nome}! Você acertou a palavra!")
         adicionar_pontuacao(nome, 1)
         return True
@@ -115,12 +118,11 @@ def dar_resposta_certa(palavra, nome):
         remover_pontos(nome, -1)
         return False
 
-
 def remover_pontos(nome, pontos):
     conn = sqlite3.connect("jogo.db")
     cursor = conn.cursor()
     
-    cursor.execute("SELECT pontos FROM jogadores WHERE nome = ? ", (nome,))  # Adicionando a cláusula WHERE corretamente
+    cursor.execute("SELECT pontos FROM jogadores WHERE nome = ? ", (nome))  # Adicionando a cláusula WHERE corretamente
     resultado = cursor.fetchone()
     
     if resultado:
@@ -145,7 +147,7 @@ def jogo_da_forca():
         
         if escolha == "1":
             nome = input("Digite o seu nome: ")
-            categoria = input("Escolha uma categoria (animal/fruta/outro): ").lower()
+            categoria = input("Escolha uma categoria (animal/fruta/nome): ").lower()
             novo_jogador(nome, categoria)
             
             while True:
@@ -207,9 +209,10 @@ def jogo_da_forca():
 
 if __name__ == "__main__":
     criar_banco_de_dados()
-    
+       
+  
     adicionar_palavra_e_dica("python", "Uma linguagem de programação", "animal")
     adicionar_palavra_e_dica("girafa", "Um animal de pescoço longo", "animal")
     adicionar_palavra_e_dica("coco", "É redondo e tem na praia", "fruta")
-    
+
     jogo_da_forca()
